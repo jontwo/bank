@@ -1,1 +1,4 @@
-bank.pyc
+*.pyc
+*.egg-info/*
+build/*
+dist/*
