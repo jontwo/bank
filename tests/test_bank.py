@@ -22,6 +22,7 @@ class BankTest(unittest.TestCase):
     def setUpClass(cls):
         cls.data_dir = os.path.join(os.path.dirname(__file__), 'data')
         cls.csv_in = os.path.join(cls.data_dir, 'statement.csv')
+        cls.xls_in = os.path.join(cls.data_dir, 'statement.xlsx')
 
     @classmethod
     def tearDownClass(cls):
@@ -68,6 +69,42 @@ class BankTest(unittest.TestCase):
         with open(outfile, 'rb') as f:
             actual = f.read()
             self.assertEqual(actual, expected)
+
+    def test_import_file_bad_filetype(self):
+        filename = 'test.pdf'
+
+        with self.assertRaises(ValueError):
+            bank.import_file(filename)
+
+    def test_import_file_csv_string(self):
+        outfile = os.path.join(self.out_dir, 'test.csv')
+        expected = pandas.DataFrame(rows, columns=bank.column_names)
+
+        bank.import_file(self.csv_in, output_file=outfile)
+
+        actual = pandas.read_csv(outfile, encoding='utf-8')
+        assert_frame_equal(actual, expected)
+
+    def test_import_file_csv_array(self):
+        outfile = os.path.join(self.out_dir, 'test.csv')
+        expected = pandas.DataFrame(rows, columns=bank.column_names)
+
+        bank.import_file([self.csv_in], output_file=outfile)
+
+        actual = pandas.read_csv(outfile, encoding='utf-8')
+        assert_frame_equal(actual, expected)
+
+    def test_read_excel(self):
+        expected = pandas.DataFrame(rows, columns=bank.column_names)
+        expected['Date'] = pandas.to_datetime(expected['Date'], dayfirst=True)
+
+        actual = bank.read_from_excel(self.xls_in)
+
+        assert_frame_equal(actual, expected)
+
+    @unittest.skip('not implemented')
+    def test_import_file_excel(self):
+        pass
 
 
 if __name__ == '__main__':
