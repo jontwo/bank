@@ -9,6 +9,7 @@ import pandas
 import six
 
 column_names = [u'Date', u'Type', u'Description', u'Amount', u'Balance']
+# aliases Merchant/Description ... Credit/Debit
 
 
 def read_from_excel(filepath, names=None, count=None):
@@ -32,6 +33,7 @@ def read_from_excel(filepath, names=None, count=None):
                 df = xl.parse(sht)
                 break
 
+        # TODO move to function
         # cleanup column names
         for c in df.columns:
             if 'Unnamed' in c:
@@ -45,8 +47,9 @@ def read_from_excel(filepath, names=None, count=None):
 
 
 def read_from_csv(filepath):
+    # TODO cleanup column names
     return pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True,
-                           encoding='utf-8')
+                           encoding='utf-8', parse_dates=True)
 
 
 def write_to_csv(df, filepath):
@@ -62,33 +65,38 @@ def write_to_csv(df, filepath):
         df.to_csv(filepath, encoding='utf-8', index=False)
 
 
-def import_file(args):
+def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None):
     ac = None
-    if isinstance(args.file, six.string_types):
-        filelist = [args.file]
+    if isinstance(filepath, six.string_types):
+        filelist = [filepath]
     else:
-        filelist = args.file
+        filelist = filepath
     for filename in filelist:
         if fnmatch.fnmatch(os.path.splitext(filename)[1].lower(), '*.csv'):
             print('importing from csv file...')
+            ac = read_from_csv(filename)
         elif fnmatch.fnmatch(os.path.splitext(filename)[1].lower(), '*.xls*'):
             print('importing from excel file...')
-            ac = read_from_excel(filename, names=args.sheet_names, count=args.sheet_count)
+            ac = read_from_excel(filename, names=sheet_names, count=sheet_count)
         else:
             raise ValueError('import file type {} not supported'.format(filename))
 
     if ac is None or len(ac) == 0:
         return
 
-    if args.output_file:
-        write_to_csv(ac, args.output_file)
+    if output_file:
+        write_to_csv(ac, output_file)
     else:
         print(ac)
 
 
-def show_statement(args):
-    print('show statement')
-    print(args)
+def show_statement(filename, date_from=None, date_to=None, output_file=None):
+    print('showing statement for ', filename)
+    ac = read_from_csv(filename)
+    if output_file:
+        write_to_csv(ac, output_file)
+    else:
+        print(ac)
 
 
 def calc_outgoings(args):
@@ -107,20 +115,22 @@ def parse_args():
                           help='Show statement for the given time period')
 
     parser.add_argument('file', nargs='+', help='csv file(s) to be read')
-    parser.add_argument('--output_file', '-o', help='output file name. outputs to '
-                        'stdout if not given.')
-    parser.add_argument('--time_period', '-t', help='time period to show')
-    parser.add_argument('--sheet_names', '-n', nargs='+', help='list of spreadsheet names '
-                        'to be read')
-    parser.add_argument('--sheet_count', type=int, help='number of sheets to be read from excel file')
+    parser.add_argument('--output_file', '-o',
+                        help='output file name. outputs to stdout if not given.')
+    parser.add_argument('--date_from', '-f', help='show records on or after this date')
+    parser.add_argument('--date_to', '-t', help='show records on or before this date')
+    parser.add_argument('--sheet_names', '-n', nargs='+',
+                        help='list of spreadsheet names to be read')
+    parser.add_argument('--sheet_count', type=int,
+                        help='number of sheets to be read from excel file')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
     if args.import_file:
-        import_file(args)
+        import_file(args.file, args.sheet_names, args.sheet_count, args.output_file)
     elif args.show_statement:
-        show_statement(args)
+        show_statement(args.file[0], args.date_from, args.date_to, args.output_file)
     elif args.calc_outgoings:
         calc_outgoings(args)
