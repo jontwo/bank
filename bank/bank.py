@@ -8,12 +8,27 @@ import os
 import pandas
 import six
 
-column_names = [u'Date', u'Type', u'Description', u'Amount', u'Balance']
-# aliases Merchant/Description ... Credit/Debit
+COLUMN_NAMES = [u'Date', u'Type', u'Description', u'Amount', u'Balance']
+ALIASES = [
+    {u'Merchant': u'Description'},
+    {u'Balance (£)': u'Balance'},
+    {u'Paid out': u'Amount'},
+    # {u'Credit': u'Amount'},
+    # {u'Debit': u'Amount'}
+]
+
+
+def cleanup_column_names(df):
+    for col in df.columns:
+        if 'Unnamed' in col:
+            del df[col]
+    for alias in ALIASES:
+        df.rename(columns=alias, inplace=True)
+    df.columns = [c.strip() for c in df.columns]
 
 
 def read_from_excel(filepath, names=None, count=None):
-    out_df = pandas.DataFrame(columns=column_names)
+    out_df = pandas.DataFrame(columns=COLUMN_NAMES)
     xl = pandas.ExcelFile(filepath)
     namelist = names or xl.sheet_names
     if count:
@@ -33,23 +48,16 @@ def read_from_excel(filepath, names=None, count=None):
                 df = xl.parse(sht)
                 break
 
-        # TODO move to function
-        # cleanup column names
-        for c in df.columns:
-            if 'Unnamed' in c:
-                del df[c]
-        df.rename(columns={u'Balance (£)': u'Balance'}, inplace=True)
-        df.rename(columns={u'Paid out': u'Amount'}, inplace=True)
-        df.columns = [c.strip() for c in df.columns]
-
+        cleanup_column_names(df)
         out_df = out_df.append(df)
     return out_df
 
 
 def read_from_csv(filepath):
-    # TODO cleanup column names
-    return pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True,
-                           encoding='utf-8', parse_dates=True)
+    df = pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True,
+                         encoding='utf-8', parse_dates=True)
+    cleanup_column_names(df)
+    return df
 
 
 def write_to_csv(df, filepath):
