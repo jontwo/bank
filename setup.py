@@ -13,7 +13,7 @@ setup(
     description='Bank statement parsing utility',
     packages=['bank'],
     include_package_data=True,
-    install_requires=['argparse', 'pandas', 'six'],
+    install_requires=['argparse', 'pandas', 'six', 'xlrd>=0.9.0'],
     test_suite='test_bank',
     zip_safe=False,
     author=info['author'],
