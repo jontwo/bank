@@ -1,30 +1,76 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 import argparse
 import fnmatch
 import os
 import pandas
 import six
+from dateutil.parser import parse as parse_date
+from xlrd.biffh import XLRDError
 
 COLUMN_NAMES = [u'Date', u'Type', u'Description', u'Amount', u'Balance']
+COLUMN_TYPES = {
+    u'Date': pandas.datetime,
+    u'Transaction Date': pandas.datetime,
+    u'Type': str,
+    u'Description': str,
+    u'Merchant': str,
+    u'Merchant/Description': str,
+    u'Amount': float,
+    u'Balance': float,
+    u'Balance (£)': float,
+    u'Debit/Credit': float,
+    u'Paid out': float,
+    u'Paid in': float,
+    u'Billing Amount': float
+}
 ALIASES = [
     {u'Merchant': u'Description'},
+    {u'Merchant/Description': u'Description'},
     {u'Balance (£)': u'Balance'},
+    {u'Debit/Credit': u'Balance'},
     {u'Paid out': u'Amount'},
-    # {u'Credit': u'Amount'},
-    # {u'Debit': u'Amount'}
+    {u'Billing Amount': u'Amount'},
+    {u'Transaction Date': u'Date'},
 ]
 
 
-def cleanup_column_names(df):
-    for col in df.columns:
-        if 'Unnamed' in col:
-            del df[col]
+def cleanup_columns(df):
+    # cleanup names
+    df.columns = [c.strip() for c in df.columns]
+
     for alias in ALIASES:
         df.rename(columns=alias, inplace=True)
-    df.columns = [c.strip() for c in df.columns]
+
+    for col in df.columns:
+        # TODO try and cast column type here
+        # vals = df.loc[df[col] == 'D', 'Balance'].str.replace('[^\d\.]','').astype(float)
+
+        try:
+            # check if column only contains D or C (debit/credit)
+            if df[col].notnull().any() and df[col][df[col].notnull()].isin(['D', 'C']).all():
+                # set debit balances to negative
+                df.loc[df[col] == 'D', 'Balance'] = -df.loc[df[col] == 'D', 'Balance']
+        except ValueError:
+            # probably not string type column
+            pass
+
+        # remove unnamed columns
+        if 'Unnamed' in col:
+            del df[col]
+
+    # if there is a 'Paid in', add negative to 'Amount'
+    if 'Paid in' in df.columns:
+        df.loc[df['Paid in'].notnull(), 'Amount'] = -df.loc[df['Paid in'].notnull(), 'Paid in']
+        del df['Paid in']
+
+    # set date column to date type (if found)
+    try:
+        df['Date'] = pandas.to_datetime(df['Date'], dayfirst=True)
+    except (KeyError, ValueError) as exc:
+        print('WARNING: Could not parse date column.', exc.message)
 
 
 def read_from_excel(filepath, names=None, count=None):
@@ -33,12 +79,22 @@ def read_from_excel(filepath, names=None, count=None):
     namelist = names or xl.sheet_names
     if count:
         namelist = namelist[:count]
-    # TODO names from wildcard
     for sht in namelist:
+        print('Reading sheet {}...'.format(sht))
         skip = 0
         while True:
-            df = xl.parse(sht, skiprows=skip)
-            unnamed = [n for n in df.columns if isinstance(n, six.string_types) and 'Unnamed' in n]
+            try:
+                df = xl.parse(sht, skiprows=skip, converters=COLUMN_TYPES)
+            except XLRDError:
+                print('ERROR: sheet not found')
+                continue
+            except TypeError:
+                # try without type converters
+                df = xl.parse(sht, skiprows=skip)
+
+            unnamed = [
+                n for n in df.columns if isinstance(n, six.string_types) and 'Unnamed' in n
+            ]
             if len(unnamed) < len(df.columns) / 2.0:
                 # continue if less than half of columns are unnamed
                 break
@@ -48,15 +104,19 @@ def read_from_excel(filepath, names=None, count=None):
                 df = xl.parse(sht)
                 break
 
-        cleanup_column_names(df)
+        cleanup_columns(df)
+        print('cleaned', df.head())
         out_df = out_df.append(df)
+        print('appended', out_df.head())
+
+    # TODO stop it changing column order
     return out_df
 
 
 def read_from_csv(filepath):
     df = pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True,
                          encoding='utf-8', parse_dates=True)
-    cleanup_column_names(df)
+    cleanup_columns(df)
     return df
 
 
