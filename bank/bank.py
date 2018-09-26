@@ -160,9 +160,24 @@ def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, 
         print(ac)
 
 
-def show_statement(filename, date_from=None, date_to=None, output_file=None):
+def show_statement(filename, date_from=None, date_to=None, date_only=False, output_file=None):
     print('showing statement for ', filename)
     ac = read_from_csv(filename)
+
+    if date_only:
+        print('date range:')
+        print(ac['Date'].min().strftime('%d %B %Y'))
+        print(ac['Date'].max().strftime('%d %B %Y'))
+        return
+
+    try:
+        if date_from:
+            ac = ac.loc[ac['Date'] >= parse_date(date_from, dayfirst=True)]
+        if date_to:
+            ac = ac.loc[ac['Date'] <= parse_date(date_to, dayfirst=True)]
+    except TypeError as exc:
+        print('WARNING: Could not set date range.', exc.message)
+
     if output_file:
         write_to_csv(ac, output_file)
     else:
@@ -206,6 +221,7 @@ if __name__ == '__main__':
         import_file(args.file, sheet_names=args.sheet_names, sheet_count=args.sheet_count,
                     output_file=args.output_file, unique=args.unique)
     elif args.show_statement:
-        show_statement(args.file[0], args.date_from, args.date_to, args.output_file)
+        show_statement(args.file[0], date_from=args.date_from, date_to=args.date_to,
+                       date_only=args.date_only, output_file=args.output_file)
     elif args.calc_outgoings:
         calc_outgoings(args)
