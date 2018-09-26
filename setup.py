@@ -19,6 +19,11 @@ setup(
     author=info['author'],
     author_email=info['author_email'],
     url='https://github.com/jontwo/bank',
+    entry_points={
+        'console_scripts': [
+            'bank = bank:main'
+        ]
+    },
     classifiers = [
         'Development Status :: 2 - Pre-Alpha',
         'Environment :: Console',

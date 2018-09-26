@@ -151,7 +151,7 @@ def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, 
         else:
             raise ValueError('import file type {} not supported'.format(filename))
 
-    if ac is None or len(ac) == 0:
+    if ac is None or ac.empty:
         return
 
     if output_file:
@@ -215,7 +215,7 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
     if args.import_file:
         import_file(args.file, sheet_names=args.sheet_names, sheet_count=args.sheet_count,
@@ -225,3 +225,7 @@ if __name__ == '__main__':
                        date_only=args.date_only, output_file=args.output_file)
     elif args.calc_outgoings:
         calc_outgoings(args)
+
+
+if __name__ == '__main__':
+    main()
