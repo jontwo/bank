@@ -120,20 +120,22 @@ def read_from_csv(filepath):
     return df
 
 
-def write_to_csv(df, filepath):
+def write_to_csv(df, filepath, remove_duplicates=False):
     if os.path.exists(filepath):
         # add df to existing data
         data = []
         data.append(read_from_csv(filepath))
         data.append(df)
         out_df = pandas.concat(data)
+        if remove_duplicates:
+            out_df.drop_duplicates(inplace=True)
         out_df.to_csv(filepath, encoding='utf-8', index=False)
     else:
         # just write df
         df.to_csv(filepath, encoding='utf-8', index=False)
 
 
-def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None):
+def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, unique=False):
     ac = None
     if isinstance(filepath, six.string_types):
         filelist = [filepath]
@@ -153,7 +155,7 @@ def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None):
         return
 
     if output_file:
-        write_to_csv(ac, output_file)
+        write_to_csv(ac, output_file, remove_duplicates=unique)
     else:
         print(ac)
 
@@ -191,13 +193,18 @@ def parse_args():
                         help='list of spreadsheet names to be read')
     parser.add_argument('--sheet_count', type=int,
                         help='number of sheets to be read from excel file')
+    parser.add_argument('--unique', action='store_true',
+                        help='do not add existing rows when importing. unique records only')
+    parser.add_argument('--date_only', action='store_true',
+                        help='only show date range when showing statement')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
     if args.import_file:
-        import_file(args.file, args.sheet_names, args.sheet_count, args.output_file)
+        import_file(args.file, sheet_names=args.sheet_names, sheet_count=args.sheet_count,
+                    output_file=args.output_file, unique=args.unique)
     elif args.show_statement:
         show_statement(args.file[0], args.date_from, args.date_to, args.output_file)
     elif args.calc_outgoings:
