@@ -161,6 +161,8 @@ class BankTest(unittest.TestCase):
         df_dirty = pandas.DataFrame([], columns=[u'Merchant', u'Balance (£)',
                                                  u'Other  ', u'Unnamed'])
         df_clean = pandas.DataFrame([], columns=[u'Description', u'Balance', u'Other'])
+        # cleanup will change the datatype of this column
+        df_clean['Balance'] = pandas.to_numeric(df_clean['Balance'], errors='coerce')
 
         bank.cleanup_columns(df_dirty)
 
@@ -212,6 +214,36 @@ class BankTest(unittest.TestCase):
         bank.cleanup_columns(actual)
 
         self.assertEqual(actual, expected)
+
+    def test_validate_OK(self):
+        """Validate a simple csv file"""
+        rows = [[u'1/1/16', u'A', u'Item 1', 1.00, 1.00],
+                [u'31/1/16', u'A', u'Balance', '', 3.50],
+                [u'6/2/16', u'C', u'Item 2', 2.00, 5.50],
+                [u'1/3/16', u'A', u'Balance', '', 7.00],
+                [u'10/2/16', u'A', u'Item 5', 1.50, 7.00],
+                [u'15/1/16', u'A', u'Item 2', 2.50, 3.50],
+                [u'10/4/16', u'B', u'Item 4', -2.00, 5.00]]
+        test_df = pandas.DataFrame(rows, columns=bank.COLUMN_NAMES)
+        test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True)
+
+        self.assertTrue(bank.validate(test_df))
+
+    def test_validate_bad_date(self):
+        """Validate a csv file with months missing"""
+        self.assertFalse(bank.validate(self.test_df))
+
+    @unittest.skip("Not implemented")
+    def test_validate_bad_balance(self):
+        """Validate a simple csv file"""
+        rows = [[u'1/1/16', u'A', u'Item 1', 1.00, 1.00],
+                [u'16/1/16', u'A', u'Item 2', 2.50, 3.50],
+                [u'10/2/16', u'A', u'Balance', '', 5.50],
+                [u'10/3/16', u'B', u'Item 4', -2.00, 3.50]]
+        test_df = pandas.DataFrame(rows, columns=bank.COLUMN_NAMES)
+        test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True)
+
+        self.assertFalse(bank.validate(test_df))
 
 
 if __name__ == '__main__':

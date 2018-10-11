@@ -45,15 +45,24 @@ def cleanup_columns(df):
         df.rename(columns=alias, inplace=True)
 
     for col in df.columns:
+        if df[col].dtype == object or df[col].dtype == str:
+            df[col] = df[col].str.strip()
+
+        try:
+            if COLUMN_TYPES[col] == float:
+                df[col] = pandas.to_numeric(df[col], errors='coerce')
+        except KeyError:
+            # unknown column name
+            pass
+
         # TODO try and cast column type here
         # vals = df.loc[df[col] == 'D', 'Balance'].str.replace('[^\d\.]','').astype(float)
-
         try:
             # check if column only contains D or C (debit/credit)
             if df[col].notnull().any() and df[col][df[col].notnull()].isin(['D', 'C']).all():
                 # set debit balances to negative
                 df.loc[df[col] == 'D', 'Balance'] = -df.loc[df[col] == 'D', 'Balance']
-        except ValueError:
+        except (ValueError, KeyError):
             # probably not string type column
             pass
 
@@ -69,8 +78,8 @@ def cleanup_columns(df):
     # set date column to date type (if found)
     try:
         df['Date'] = pandas.to_datetime(df['Date'], dayfirst=True)
-    except (KeyError, ValueError) as exc:
-        print('WARNING: Could not parse date column.', exc.message)
+    except (KeyError, ValueError):
+        print('WARNING: Could not parse date column.')
 
 
 def read_from_excel(filepath, names=None, count=None):
@@ -115,7 +124,7 @@ def read_from_excel(filepath, names=None, count=None):
 
 def read_from_csv(filepath):
     df = pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True,
-                         encoding='utf-8', parse_dates=True)
+                         encoding='utf-8', parse_dates=True, dayfirst=True)
     cleanup_columns(df)
     return df
 
@@ -133,6 +142,40 @@ def write_to_csv(df, filepath, remove_duplicates=False):
     else:
         # just write df
         df.to_csv(filepath, encoding='utf-8', index=False)
+
+
+def validate(df):
+    missing = set(COLUMN_NAMES).difference(set(df.columns))
+    if missing:
+        print("ERROR: File does not have the following columns: {}".format(missing))
+        return False
+
+    # check no months missing between start and end
+    actual_months = df['Date'].apply(lambda d:d.strftime('%Y-%m')).tolist()
+    month_range = pandas.date_range(df['Date'].min(), df['Date'].max(),
+                                    freq=pandas.DateOffset(months=1))
+    expected_months = [m.strftime('%Y-%m') for m in month_range.tolist()]
+    missing = set(expected_months).difference(set(actual_months))
+
+    for month in missing:
+        print("No entries found in {}".format(month))
+
+    return not missing
+
+    # check balance is correct on each row
+    # TODO this needs to handle multiple transactions on the same day
+    # (balance is NaN except for the last one)
+    #new_balance = df['Balance'].shift()
+    #if pandas.isnull(new_balance[0]):
+        #new_balance[0] = 0
+
+    #mask = (df['Amount'] + new_balance) == df['Balance']
+    #if not mask.all():
+        #print("Invalid balance(s):")
+    #for i in range(len(df[~mask])):
+        #print(pandas.concat([df[~mask].iloc[[i]], df[~mask].iloc[[i]]]))
+
+    #return not(missing or df[~mask])
 
 
 def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, unique=False):
@@ -198,6 +241,8 @@ def parse_args():
                           help='Calculate outgoings and summarise by type')
     commands.add_argument('--show_statement', '-s', action='store_true',
                           help='Show statement for the given time period')
+    commands.add_argument('--validate', '-v', action='store_true',
+                          help='Validate csv file')
 
     parser.add_argument('file', nargs='+', help='csv file(s) to be read')
     parser.add_argument('--output_file', '-o',
@@ -225,6 +270,9 @@ def main():
                        date_only=args.date_only, output_file=args.output_file)
     elif args.calc_outgoings:
         calc_outgoings(args)
+    elif args.validate:
+        for fn in args.file:
+            validate(read_from_csv(fn))
 
 
 if __name__ == '__main__':
