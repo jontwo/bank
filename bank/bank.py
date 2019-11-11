@@ -132,9 +132,7 @@ def read_from_csv(filepath):
 def write_to_csv(df, filepath, remove_duplicates=False):
     if os.path.exists(filepath):
         # add df to existing data
-        data = []
-        data.append(read_from_csv(filepath))
-        data.append(df)
+        data = [read_from_csv(filepath), df]
         out_df = pandas.concat(data)
         if remove_duplicates:
             out_df.drop_duplicates(inplace=True)
@@ -151,7 +149,7 @@ def validate(df):
         return False
 
     # check no months missing between start and end
-    actual_months = df['Date'].apply(lambda d:d.strftime('%Y-%m')).tolist()
+    actual_months = df['Date'].apply(lambda d: d.strftime('%Y-%m')).tolist()
     month_range = pandas.date_range(df['Date'].min(), df['Date'].max(),
                                     freq=pandas.DateOffset(months=1))
     expected_months = [m.strftime('%Y-%m') for m in month_range.tolist()]
@@ -165,17 +163,17 @@ def validate(df):
     # check balance is correct on each row
     # TODO this needs to handle multiple transactions on the same day
     # (balance is NaN except for the last one)
-    #new_balance = df['Balance'].shift()
-    #if pandas.isnull(new_balance[0]):
-        #new_balance[0] = 0
-
-    #mask = (df['Amount'] + new_balance) == df['Balance']
-    #if not mask.all():
-        #print("Invalid balance(s):")
-    #for i in range(len(df[~mask])):
-        #print(pandas.concat([df[~mask].iloc[[i]], df[~mask].iloc[[i]]]))
-
-    #return not(missing or df[~mask])
+    # new_balance = df['Balance'].shift()
+    # if pandas.isnull(new_balance[0]):
+    #     new_balance[0] = 0
+    #
+    # mask = (df['Amount'] + new_balance) == df['Balance']
+    # if not mask.all():
+    #     print("Invalid balance(s):")
+    # for i in range(len(df[~mask])):
+    #     print(pandas.concat([df[~mask].iloc[[i]], df[~mask].iloc[[i]]]))
+    #
+    # return not(missing or df[~mask])
 
 
 def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, unique=False):
