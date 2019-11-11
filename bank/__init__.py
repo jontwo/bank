@@ -1,5 +1,5 @@
 
-from bank import *
+from .bank import *  # noqa: F401,F403
 
 __version__ = '0.1.0'
 __author__ = 'Jon Morris'

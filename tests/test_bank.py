@@ -6,21 +6,24 @@ author: Jon Morris
 date: May 2018
 """
 
-from __future__ import print_function
 import os
 import shutil
 import tempfile
 import unittest
 import uuid
-from numpy import nan
+from io import open
+
 import pandas
+import six
+from numpy import nan
 from pandas.util.testing import assert_frame_equal
+
 import bank
 
-ROWS = [[u'1/1/16', u'A', u'Item 1', 1.00, 1.00],
-        [u'16/1/16', u'A', u'Item 2', 2.50, 3.50],
-        [u'10/3/16', u'A', u'Item 3', 2.00, 5.50],
-        [u'10/11/16', u'B', u'Item 4', -2.00, 3.50]]
+ROWS = [['1/1/16', 'A', 'Item 1', 1.00, 1.00],
+        ['16/1/16', 'A', 'Item 2', 2.50, 3.50],
+        ['10/3/16', 'A', 'Item 3', 2.00, 5.50],
+        ['10/11/16', 'B', 'Item 4', -2.00, 3.50]]
 
 
 class BankTest(unittest.TestCase):
@@ -53,6 +56,18 @@ class BankTest(unittest.TestCase):
         except OSError:
             pass
 
+    def assertFileEqual(self, filepath, expected, msg=None):
+        """Compares a file to expected text."""
+        if six.PY3:
+            mode = 'r'
+            newline = ''
+        else:
+            mode = 'rb'
+            newline = None
+        with open(filepath, mode=mode, newline=newline) as fcsv:
+            actual = fcsv.read()
+            self.assertEqual(actual, expected, msg)
+
     def assertEqual(self, first, second, msg=None):
         """Override to avoid pylint no-self-use error"""
         if isinstance(first, pandas.DataFrame) and isinstance(second, pandas.DataFrame):
@@ -77,9 +92,7 @@ class BankTest(unittest.TestCase):
 
         bank.write_to_csv(df, outfile)
 
-        with open(outfile, 'rb') as fcsv:
-            actual = fcsv.read()
-            self.assertEqual(actual, expected)
+        self.assertFileEqual(outfile, expected)
 
     def test_append_csv(self):
         """Add a dataframe to an existing csv file"""
@@ -91,9 +104,7 @@ class BankTest(unittest.TestCase):
         bank.write_to_csv(df, outfile)
         bank.write_to_csv(df, outfile)
 
-        with open(outfile, 'rb') as fcsv:
-            actual = fcsv.read()
-            self.assertEqual(actual, expected)
+        self.assertFileEqual(outfile, expected)
 
     def test_append_csv_remove_duplicates(self):
         """Add a dataframe to an existing csv file"""
@@ -105,9 +116,7 @@ class BankTest(unittest.TestCase):
         bank.write_to_csv(df, outfile, remove_duplicates=True)
         bank.write_to_csv(df, outfile, remove_duplicates=True)
 
-        with open(outfile, 'rb') as fcsv:
-            actual = fcsv.read()
-            self.assertEqual(actual, expected)
+        self.assertFileEqual(outfile, expected)
 
     def test_import_file_bad_filetype(self):
         """Try to import a file of the wrong type"""
@@ -158,9 +167,9 @@ class BankTest(unittest.TestCase):
 
     def test_cleanup_column_names(self):
         """Check column names are cleaned up properly"""
-        df_dirty = pandas.DataFrame([], columns=[u'Merchant', u'Balance (£)',
-                                                 u'Other  ', u'Unnamed'])
-        df_clean = pandas.DataFrame([], columns=[u'Description', u'Balance', u'Other'])
+        df_dirty = pandas.DataFrame([], columns=['Merchant', 'Balance (£)',
+                                                 'Other  ', 'Unnamed'])
+        df_clean = pandas.DataFrame([], columns=['Description', 'Balance', 'Other'])
         # cleanup will change the datatype of this column
         df_clean['Balance'] = pandas.to_numeric(df_clean['Balance'], errors='coerce')
 
@@ -217,13 +226,13 @@ class BankTest(unittest.TestCase):
 
     def test_validate_OK(self):
         """Validate a simple csv file"""
-        rows = [[u'1/1/16', u'A', u'Item 1', 1.00, 1.00],
-                [u'31/1/16', u'A', u'Balance', '', 3.50],
-                [u'6/2/16', u'C', u'Item 2', 2.00, 5.50],
-                [u'1/3/16', u'A', u'Balance', '', 7.00],
-                [u'10/2/16', u'A', u'Item 5', 1.50, 7.00],
-                [u'15/1/16', u'A', u'Item 2', 2.50, 3.50],
-                [u'10/4/16', u'B', u'Item 4', -2.00, 5.00]]
+        rows = [['1/1/16', 'A', 'Item 1', 1.00, 1.00],
+                ['31/1/16', 'A', 'Balance', '', 3.50],
+                ['6/2/16', 'C', 'Item 2', 2.00, 5.50],
+                ['1/3/16', 'A', 'Balance', '', 7.00],
+                ['10/2/16', 'A', 'Item 5', 1.50, 7.00],
+                ['15/1/16', 'A', 'Item 2', 2.50, 3.50],
+                ['10/4/16', 'B', 'Item 4', -2.00, 5.00]]
         test_df = pandas.DataFrame(rows, columns=bank.COLUMN_NAMES)
         test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True)
 
@@ -236,10 +245,10 @@ class BankTest(unittest.TestCase):
     @unittest.skip("Not implemented")
     def test_validate_bad_balance(self):
         """Validate a simple csv file"""
-        rows = [[u'1/1/16', u'A', u'Item 1', 1.00, 1.00],
-                [u'16/1/16', u'A', u'Item 2', 2.50, 3.50],
-                [u'10/2/16', u'A', u'Balance', '', 5.50],
-                [u'10/3/16', u'B', u'Item 4', -2.00, 3.50]]
+        rows = [['1/1/16', 'A', 'Item 1', 1.00, 1.00],
+                ['16/1/16', 'A', 'Item 2', 2.50, 3.50],
+                ['10/2/16', 'A', 'Balance', '', 5.50],
+                ['10/3/16', 'B', 'Item 4', -2.00, 3.50]]
         test_df = pandas.DataFrame(rows, columns=bank.COLUMN_NAMES)
         test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True)
 

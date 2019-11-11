@@ -5,7 +5,7 @@ import re
 from setuptools import setup
 
 init_py = open(os.path.join('bank', '__init__.py')).read()
-info = dict(re.findall("__([a-z_]+)__\s*=\s*'([^']+)'", init_py))
+info = dict(re.findall(r"__([a-z_]+)__\s*=\s*'([^']+)'", init_py))
 
 setup(
     name='bank',
@@ -24,11 +24,12 @@ setup(
             'bank = bank:main'
         ]
     },
-    classifiers = [
+    classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Environment :: Console',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.5',
         'Topic :: Office/Business :: Financial',
     ]
 )
