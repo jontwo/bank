@@ -14,7 +14,7 @@ setup(
     packages=['bank'],
     include_package_data=True,
     install_requires=['argparse', 'pandas', 'six', 'xlrd>=0.9.0'],
-    test_suite='test_bank',
+    test_suite='tests',
     zip_safe=False,
     author=info['author'],
     author_email=info['author_email'],
@@ -28,8 +28,7 @@ setup(
         'Development Status :: 2 - Pre-Alpha',
         'Environment :: Console',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.5',
-        'Topic :: Office/Business :: Financial',
+        'Topic :: Office/Business :: Financial'
     ]
 )
