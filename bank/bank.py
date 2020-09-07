@@ -46,7 +46,7 @@ __all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'calc_outgoings', 'cleanup
 def cleanup_columns(df):
     # cleanup names
     df.columns = [c.strip() for c in df.columns]
-
+    df.columns = df.columns.str.title()
     for alias in ALIASES:
         df.rename(columns=alias, inplace=True)
 
@@ -134,11 +134,21 @@ def read_from_csv(filepath):
     return df
 
 
-def write_to_csv(df, filepath, remove_duplicates=False):
+def write_to_csv(df, filepath, remove_duplicates=False, check_columns=True, continue_on_err=False):
     if os.path.exists(filepath):
         # add df to existing data
-        data = [read_from_csv(filepath), df]
-        out_df = pandas.concat(data)
+        df_existing = read_from_csv(filepath)
+        if check_columns and not df_existing.columns.str.lower().sort_values().equals(
+                df.columns.str.lower().sort_values()):
+            print('WARNING: column names do not match')
+            print('Existing columns: {}'.format(df_existing.columns))
+            print('New columns: {}'.format(df.columns))
+            if not continue_on_err:
+                return
+            # TODO look for mapping if different
+            # warn if mapping not found
+        data = [df_existing, df]
+        out_df = pandas.concat(data, sort=True)
         if remove_duplicates:
             out_df.drop_duplicates(inplace=True)
         out_df.to_csv(filepath, encoding='utf-8', index=False)
@@ -147,18 +157,19 @@ def write_to_csv(df, filepath, remove_duplicates=False):
         df.to_csv(filepath, encoding='utf-8', index=False)
 
 
-def validate(df):
+def validate(df, continue_on_err=False):
     missing = set(COLUMN_NAMES).difference(set(df.columns))
     if missing:
         print("ERROR: File does not have the following columns: {}".format(missing))
-        return False
+        if not continue_on_err:
+            return False
 
     # check no months missing between start and end
     actual_months = df['Date'].apply(lambda d: d.strftime('%Y-%m')).tolist()
     month_range = pandas.date_range(df['Date'].min(), df['Date'].max(),
                                     freq=pandas.DateOffset(months=1))
     expected_months = [m.strftime('%Y-%m') for m in month_range.tolist()]
-    missing = set(expected_months).difference(set(actual_months))
+    missing = sorted(set(expected_months).difference(set(actual_months)))
 
     for month in missing:
         print("No entries found in {}".format(month))
@@ -267,6 +278,8 @@ def parse_args():
                         help='do not add existing rows when importing. unique records only')
     parser.add_argument('--date_only', action='store_true',
                         help='only show date range when showing statement')
+    parser.add_argument('--continue_on_error', action='store_true',
+                        help='show a warning and continue if there is an error')
     return parser.parse_args()
 
 
@@ -282,7 +295,7 @@ def main():
         calc_outgoings(args)
     elif args.validate:
         for fn in args.file:
-            validate(read_from_csv(fn))
+            validate(read_from_csv(fn), all_errors=args.continue_on_error)
 
 
 if __name__ == '__main__':

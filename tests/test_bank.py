@@ -193,7 +193,7 @@ class BankTest(unittest.TestCase):
     def test_set_balance_debit(self):
         """Find the column containing 'D' and set the balance column of that row to be negative"""
         actual = pandas.DataFrame([[1, 2, 'D', 3]], columns=['a', 'Balance', 'c', 'd'])
-        expected = pandas.DataFrame([[1, -2, 'D', 3]], columns=['a', 'Balance', 'c', 'd'])
+        expected = pandas.DataFrame([[1, -2, 'D', 3]], columns=['A', 'Balance', 'C', 'D'])
 
         bank.cleanup_columns(actual)
 
@@ -208,7 +208,7 @@ class BankTest(unittest.TestCase):
             [1, 2, 'E', 3],
         ]
         actual = pandas.DataFrame(data, columns=['a', 'Balance', 'c', 'd'])
-        expected = pandas.DataFrame(data, columns=['a', 'Balance', 'c', 'd'])
+        expected = pandas.DataFrame(data, columns=['A', 'Balance', 'C', 'D'])
 
         bank.cleanup_columns(actual)
 
