@@ -14,9 +14,8 @@ import uuid
 from io import open
 
 import pandas
-import six
 from numpy import nan
-from pandas.util.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
 
 import bank
 
@@ -58,13 +57,7 @@ class BankTest(unittest.TestCase):
 
     def assertFileEqual(self, filepath, expected, msg=None):
         """Compares a file to expected text."""
-        if six.PY3:
-            mode = 'r'
-            newline = ''
-        else:
-            mode = 'rb'
-            newline = None
-        with open(filepath, mode=mode, newline=newline) as fcsv:
+        with open(filepath, mode='r', newline='') as fcsv:
             actual = fcsv.read()
             self.assertEqual(actual, expected, msg)
 

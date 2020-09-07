@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, absolute_import
 import argparse
 import fnmatch
 import os
 import pandas
 import six
+from datetime import datetime
 from dateutil.parser import parse as parse_date
 from xlrd.biffh import XLRDError
 
 COLUMN_NAMES = ['Date', 'Type', 'Description', 'Amount', 'Balance']
 COLUMN_TYPES = {
-    'Date': pandas.datetime,
-    'Transaction Date': pandas.datetime,
+    'Date': datetime,
+    'Transaction Date': datetime,
     'Type': str,
     'Description': str,
     'Merchant': str,
