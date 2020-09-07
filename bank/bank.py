@@ -5,6 +5,7 @@ import argparse
 import fnmatch
 import os
 import pandas
+import re
 import six
 from datetime import datetime
 from dateutil.parser import parse as parse_date
@@ -35,6 +36,8 @@ ALIASES = [
     {'Billing Amount': 'Amount'},
     {'Transaction Date': 'Date'},
 ]
+YEARFIRST = re.compile(r'^\d{4}')
+
 __all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'calc_outgoings', 'cleanup_columns',
            'import_file', 'main', 'read_from_csv', 'read_from_excel', 'show_statement',
            'validate', 'write_to_csv']
@@ -80,7 +83,7 @@ def cleanup_columns(df):
 
     # set date column to date type (if found)
     try:
-        df['Date'] = pandas.to_datetime(df['Date'], dayfirst=True)
+        df['Date'] = pandas.to_datetime(df['Date'], dayfirst=True).dt.date
     except (KeyError, ValueError):
         print('WARNING: Could not parse date column.')
 
@@ -126,8 +129,7 @@ def read_from_excel(filepath, names=None, count=None):
 
 
 def read_from_csv(filepath):
-    df = pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True,
-                         encoding='utf-8', parse_dates=True, dayfirst=True)
+    df = pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True, encoding='utf-8')
     cleanup_columns(df)
     return df
 
@@ -216,15 +218,22 @@ def show_statement(filename, date_from=None, date_to=None, date_only=False, outp
 
     try:
         if date_from:
-            ac = ac.loc[ac['Date'] >= parse_date(date_from, dayfirst=True)]
+            ac = ac.loc[ac['Date'] >= parse_date(date_from,
+                                                 dayfirst=not YEARFIRST.match(date_from)).date()]
         if date_to:
-            ac = ac.loc[ac['Date'] <= parse_date(date_to, dayfirst=True)]
+            ac = ac.loc[ac['Date'] <= parse_date(date_to,
+                                                 dayfirst=not YEARFIRST.match(date_to)).date()]
     except TypeError as exc:
         print('WARNING: Could not set date range.', exc.message)
 
     if output_file:
         write_to_csv(ac, output_file)
     else:
+        for col in ac.columns:
+            if col not in COLUMN_NAMES:
+                del ac[col]
+        ac.sort_values('Date', inplace=True)
+        pandas.set_option('display.max_rows', None)
         print(ac)
 
 

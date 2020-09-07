@@ -34,20 +34,16 @@ class BankTest(unittest.TestCase):
         cls.xls_in = os.path.join(cls.data_dir, 'statement.xlsx')
 
     @classmethod
-    def tearDownClass(cls):
-        pass
-
-    @classmethod
     def shortDescription(cls):
-        """Hide docstrings from nose"""
         pass
+        """Hide docstrings from nose"""
 
     def setUp(self):
         self.out_dir = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
         os.mkdir(self.out_dir)
 
         self.test_df = pandas.DataFrame(ROWS, columns=bank.COLUMN_NAMES)
-        self.test_df['Date'] = pandas.to_datetime(self.test_df['Date'], dayfirst=True)
+        self.test_df['Date'] = pandas.to_datetime(self.test_df['Date'], dayfirst=True).dt.date
 
     def tearDown(self):
         try:
@@ -126,7 +122,7 @@ class BankTest(unittest.TestCase):
         bank.import_file(self.csv_in, output_file=outfile)
 
         actual = pandas.read_csv(outfile, encoding='utf-8')
-        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True)
+        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True).dt.date
         self.assertEqual(actual, expected)
 
     def test_import_file_csv_array(self):
@@ -137,7 +133,7 @@ class BankTest(unittest.TestCase):
         bank.import_file([self.csv_in], output_file=outfile)
 
         actual = pandas.read_csv(outfile, encoding='utf-8')
-        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True)
+        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True).dt.date
         self.assertEqual(actual, expected)
 
     def test_read_excel(self):
@@ -155,7 +151,8 @@ class BankTest(unittest.TestCase):
 
         bank.import_file(self.xls_in, output_file=outfile)
 
-        actual = pandas.read_csv(outfile, encoding='utf-8', parse_dates=[0], dayfirst=True)
+        actual = pandas.read_csv(outfile, encoding='utf-8')
+        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True).dt.date
         self.assertEqual(actual, expected)
 
     def test_cleanup_column_names(self):
@@ -178,19 +175,19 @@ class BankTest(unittest.TestCase):
         bank.show_statement(self.csv_in, output_file=outfile)
 
         actual = pandas.read_csv(outfile, encoding='utf-8')
-        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True)
+        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True).dt.date
         self.assertEqual(actual, expected)
 
     def test_show_statement_date_range(self):
         """Import a simple csv file with a string argument"""
         outfile = os.path.join(self.out_dir, 'test.csv')
         expected = pandas.DataFrame([ROWS[2]], columns=bank.COLUMN_NAMES)
-        expected['Date'] = pandas.to_datetime(expected['Date'], dayfirst=True)
+        expected['Date'] = pandas.to_datetime(expected['Date'], dayfirst=True).dt.date
 
         bank.show_statement(self.csv_in, date_from="1/3/16", date_to="30/4/16", output_file=outfile)
 
         actual = pandas.read_csv(outfile, encoding='utf-8')
-        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True)
+        actual['Date'] = pandas.to_datetime(actual['Date'], dayfirst=True).dt.date
         self.assertEqual(actual, expected)
 
     def test_set_balance_debit(self):
@@ -227,7 +224,7 @@ class BankTest(unittest.TestCase):
                 ['15/1/16', 'A', 'Item 2', 2.50, 3.50],
                 ['10/4/16', 'B', 'Item 4', -2.00, 5.00]]
         test_df = pandas.DataFrame(rows, columns=bank.COLUMN_NAMES)
-        test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True)
+        test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True).dt.date
 
         self.assertTrue(bank.validate(test_df))
 
@@ -243,7 +240,7 @@ class BankTest(unittest.TestCase):
                 ['10/2/16', 'A', 'Balance', '', 5.50],
                 ['10/3/16', 'B', 'Item 4', -2.00, 3.50]]
         test_df = pandas.DataFrame(rows, columns=bank.COLUMN_NAMES)
-        test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True)
+        test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True).dt.date
 
         self.assertFalse(bank.validate(test_df))
 
