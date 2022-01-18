@@ -1,12 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import argparse
 import fnmatch
 import os
 import pandas
 import re
-import six
 from datetime import datetime
 from dateutil.parser import parse as parse_date
 from xlrd.biffh import XLRDError
@@ -31,7 +29,7 @@ ALIASES = [
     {'Merchant': 'Description'},
     {'Merchant/Description': 'Description'},
     {'Balance (£)': 'Balance'},
-    {'Debit/Credit': 'Balance'},
+    {'Debit/Credit': 'Amount'},
     {'Paid out': 'Amount'},
     {'Billing Amount': 'Amount'},
     {'Transaction Date': 'Date'},
@@ -44,6 +42,8 @@ __all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'calc_outgoings', 'cleanup
 
 
 def cleanup_columns(df):
+    if df is None:
+        return
     # cleanup names
     df.columns = [c.strip() for c in df.columns]
     df.columns = df.columns.str.title()
@@ -84,13 +84,14 @@ def cleanup_columns(df):
     # set date column to date type (if found)
     try:
         df['Date'] = pandas.to_datetime(df['Date'], dayfirst=True).dt.date
-    except (KeyError, ValueError):
-        print('WARNING: Could not parse date column.')
+    except (KeyError, ValueError) as err:
+        print(f'WARNING: Could not parse date column. {err}')
 
 
 def read_from_excel(filepath, names=None, count=None):
     out_df = pandas.DataFrame(columns=COLUMN_NAMES)
     xl = pandas.ExcelFile(filepath)
+    df = None
     namelist = names or xl.sheet_names
     if count:
         namelist = namelist[:count]
@@ -108,7 +109,7 @@ def read_from_excel(filepath, names=None, count=None):
                 df = xl.parse(sht, skiprows=skip)
 
             unnamed = [
-                n for n in df.columns if isinstance(n, six.string_types) and 'Unnamed' in n
+                n for n in df.columns if isinstance(n, str) and 'Unnamed' in n
             ]
             if len(unnamed) < len(df.columns) / 2.0:
                 # continue if less than half of columns are unnamed
@@ -194,7 +195,7 @@ def validate(df, continue_on_err=False):
 
 def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, unique=False):
     ac = None
-    if isinstance(filepath, six.string_types):
+    if isinstance(filepath, str):
         filelist = [filepath]
     else:
         filelist = filepath
@@ -235,7 +236,7 @@ def show_statement(filename, date_from=None, date_to=None, date_only=False, outp
             ac = ac.loc[ac['Date'] <= parse_date(date_to,
                                                  dayfirst=not YEARFIRST.match(date_to)).date()]
     except TypeError as exc:
-        print('WARNING: Could not set date range.', exc.message)
+        print(f'WARNING: Could not set date range. {exc}')
 
     if output_file:
         write_to_csv(ac, output_file)
@@ -295,7 +296,7 @@ def main():
         calc_outgoings(args)
     elif args.validate:
         for fn in args.file:
-            validate(read_from_csv(fn), all_errors=args.continue_on_error)
+            validate(read_from_csv(fn), continue_on_err=args.continue_on_error)
 
 
 if __name__ == '__main__':

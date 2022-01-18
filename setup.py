@@ -13,7 +13,7 @@ setup(
     description='Bank statement parsing utility',
     packages=['bank'],
     include_package_data=True,
-    install_requires=['argparse', 'pandas', 'six', 'xlrd>=0.9.0'],
+    install_requires=['python-dateutil', 'pandas', 'numpy', 'openpyxl', 'xlrd>=0.9.0'],
     test_suite='tests',
     zip_safe=False,
     author=info['author'],
@@ -29,6 +29,8 @@ setup(
         'Environment :: Console',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Office/Business :: Financial'
     ]
 )

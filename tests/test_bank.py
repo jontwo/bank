@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Unit tests for bank statement reader
 author: Jon Morris
@@ -243,8 +242,3 @@ class BankTest(unittest.TestCase):
         test_df['Date'] = pandas.to_datetime(test_df['Date'], dayfirst=True).dt.date
 
         self.assertFalse(bank.validate(test_df))
-
-
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(BankTest)
-    unittest.TextTestRunner(verbosity=2).run(suite)
