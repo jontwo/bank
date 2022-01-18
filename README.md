@@ -1,7 +1,7 @@
 bank
 ====
 
-[![Build Status](https://travis-ci.org/jontwo/bank.svg?branch=main)](https://travis-ci.org/jontwo/bank)
+[![Build Status](https://github.com/jontwo/bank/actions/workflows/python-app.yml/badge.svg)](https://github.com/jontwo/bank/actions/workflows/python-app.yml)
 
 bank is a utility to process downloaded bank statements.
 
