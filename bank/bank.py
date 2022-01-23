@@ -3,9 +3,11 @@
 import argparse
 import fnmatch
 import os
-import pandas
 import re
 from datetime import datetime
+
+import pandas as pd
+import simplejson as json
 from dateutil.parser import parse as parse_date
 from xlrd.biffh import XLRDError
 
@@ -35,10 +37,11 @@ ALIASES = [
     {'Transaction Date': 'Date'},
 ]
 YEARFIRST = re.compile(r'^\d{4}')
+CONFIG_PATH = os.path.expanduser(os.path.join('~', '.config', 'bank.json'))
 
-__all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'calc_outgoings', 'cleanup_columns',
-           'import_file', 'main', 'read_from_csv', 'read_from_excel', 'show_statement',
-           'validate', 'write_to_csv']
+__all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'CONFIG_PATH', 'YEARFIRST', 'calc_outgoings',
+           'cleanup_columns', 'import_file', 'main', 'read_from_csv', 'read_from_excel',
+           'show_statement', 'validate', 'write_to_csv']
 
 
 def cleanup_columns(df):
@@ -56,7 +59,7 @@ def cleanup_columns(df):
 
         try:
             if COLUMN_TYPES[col] == float:
-                df[col] = pandas.to_numeric(df[col], errors='coerce')
+                df[col] = pd.to_numeric(df[col], errors='coerce')
         except KeyError:
             # unknown column name
             pass
@@ -83,14 +86,14 @@ def cleanup_columns(df):
 
     # set date column to date type (if found)
     try:
-        df['Date'] = pandas.to_datetime(df['Date'], dayfirst=True).dt.date
+        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True).dt.date
     except (KeyError, ValueError) as err:
         print(f'WARNING: Could not parse date column. {err}')
 
 
 def read_from_excel(filepath, names=None, count=None):
-    out_df = pandas.DataFrame(columns=COLUMN_NAMES)
-    xl = pandas.ExcelFile(filepath)
+    out_df = pd.DataFrame(columns=COLUMN_NAMES)
+    xl = pd.ExcelFile(filepath)
     df = None
     namelist = names or xl.sheet_names
     if count:
@@ -130,7 +133,7 @@ def read_from_excel(filepath, names=None, count=None):
 
 
 def read_from_csv(filepath):
-    df = pandas.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True, encoding='utf-8')
+    df = pd.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True, encoding='utf-8')
     cleanup_columns(df)
     return df
 
@@ -149,7 +152,7 @@ def write_to_csv(df, filepath, remove_duplicates=False, check_columns=True, cont
             # TODO look for mapping if different
             # warn if mapping not found
         data = [df_existing, df]
-        out_df = pandas.concat(data, sort=True)
+        out_df = pd.concat(data, sort=True)
         if remove_duplicates:
             out_df.drop_duplicates(inplace=True)
         out_df.to_csv(filepath, encoding='utf-8', index=False)
@@ -167,8 +170,8 @@ def validate(df, continue_on_err=False):
 
     # check no months missing between start and end
     actual_months = df['Date'].apply(lambda d: d.strftime('%Y-%m')).tolist()
-    month_range = pandas.date_range(df['Date'].min(), df['Date'].max(),
-                                    freq=pandas.DateOffset(months=1))
+    month_range = pd.date_range(df['Date'].min(), df['Date'].max(),
+                                freq=pd.DateOffset(months=1))
     expected_months = [m.strftime('%Y-%m') for m in month_range.tolist()]
     missing = sorted(set(expected_months).difference(set(actual_months)))
 
@@ -181,14 +184,14 @@ def validate(df, continue_on_err=False):
     # TODO this needs to handle multiple transactions on the same day
     # (balance is NaN except for the last one)
     # new_balance = df['Balance'].shift()
-    # if pandas.isnull(new_balance[0]):
+    # if pd.isnull(new_balance[0]):
     #     new_balance[0] = 0
     #
     # mask = (df['Amount'] + new_balance) == df['Balance']
     # if not mask.all():
     #     print("Invalid balance(s):")
     # for i in range(len(df[~mask])):
-    #     print(pandas.concat([df[~mask].iloc[[i]], df[~mask].iloc[[i]]]))
+    #     print(pd.concat([df[~mask].iloc[[i]], df[~mask].iloc[[i]]]))
     #
     # return not(missing or df[~mask])
 
@@ -245,13 +248,41 @@ def show_statement(filename, date_from=None, date_to=None, date_only=False, outp
             if col not in COLUMN_NAMES:
                 del ac[col]
         ac.sort_values('Date', inplace=True)
-        pandas.set_option('display.max_rows', None)
+        pd.set_option('display.max_rows', None)
         print(ac)
 
 
-def calc_outgoings(args):
-    print('calc outgoings')
-    print(args)
+def calc_outgoings(filename, show_unknown=False, add_categories=False):
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, mode='r', encoding='utf-8') as fp:
+            config = json.load(fp)
+    else:
+        config = {}
+    all_items = config.values()
+    print("Total outgoings (£):")
+    ac = read_from_csv(filename)
+    result = ac.replace({'Description': config}).groupby('Description').sum()['Amount']
+    in_config_df = result.index.isin(all_items)
+    other_items = pd.Series([result[~in_config_df].sum()], index=['Other'])
+    all_items = pd.concat((result[in_config_df], other_items))
+    print(all_items.to_string(header=False, float_format=lambda x: f'{x:.2f}'))
+
+    if show_unknown:
+        print("The following items do not have a category:")
+        print(", ".join(result[~in_config_df].index.values))
+
+    if add_categories:
+        print("Please input categories for the following items (press Enter to quit):")
+        print("Current categories are: ", ', '.join(set(config.values())))
+        for item in result[~in_config_df].index:
+            category = input(f"{item} >")
+            if category:
+                config[item] = category
+            else:
+                break
+
+        with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
+            json.dump(config, fp)
 
 
 def parse_args():
@@ -279,6 +310,10 @@ def parse_args():
                         help='do not add existing rows when importing. unique records only')
     parser.add_argument('--date_only', action='store_true',
                         help='only show date range when showing statement')
+    parser.add_argument('--show_unknown', action='store_true',
+                        help='show all unknown items when calculating outgoings')
+    parser.add_argument('--add_categories', action='store_true',
+                        help='add categories for unknown items when calculating outgoings')
     parser.add_argument('--continue_on_error', action='store_true',
                         help='show a warning and continue if there is an error')
     return parser.parse_args()
@@ -293,7 +328,8 @@ def main():
         show_statement(args.file[0], date_from=args.date_from, date_to=args.date_to,
                        date_only=args.date_only, output_file=args.output_file)
     elif args.calc_outgoings:
-        calc_outgoings(args)
+        calc_outgoings(args.file[0], show_unknown=args.show_unknown,
+                       add_categories=args.add_categories)
     elif args.validate:
         for fn in args.file:
             validate(read_from_csv(fn), continue_on_err=args.continue_on_error)
