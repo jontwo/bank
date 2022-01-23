@@ -93,6 +93,8 @@ def cleanup_columns(df):
 
 def read_from_excel(filepath, names=None, count=None):
     out_df = pd.DataFrame(columns=COLUMN_NAMES)
+    out_df = out_df.astype(
+        {k: v for k, v in COLUMN_TYPES.items() if k in out_df.columns and k != 'Date'})
     xl = pd.ExcelFile(filepath)
     df = None
     namelist = names or xl.sheet_names
@@ -125,7 +127,7 @@ def read_from_excel(filepath, names=None, count=None):
 
         cleanup_columns(df)
         print('cleaned', df.head())
-        out_df = out_df.append(df)
+        out_df = pd.concat((out_df, df))
         print('appended', out_df.head())
 
     # TODO stop it changing column order
