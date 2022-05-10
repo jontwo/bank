@@ -5,3 +5,5 @@ dist/*
 .tox/
 .idea/
 .eggs/
+.coverage
+htmlcov/

@@ -40,11 +40,11 @@ YEARFIRST = re.compile(r'^\d{4}')
 CONFIG_PATH = os.path.expanduser(os.path.join('~', '.config', 'bank.json'))
 
 __all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'CONFIG_PATH', 'YEARFIRST', 'calc_outgoings',
-           'cleanup_columns', 'import_file', 'main', 'read_from_csv', 'read_from_excel',
-           'show_statement', 'validate', 'write_to_csv']
+           'cleanup_columns', 'delete_category', 'import_file', 'main', 'read_from_csv',
+           'read_from_excel', 'show_statement', 'validate', 'write_to_csv']
 
 
-def cleanup_columns(df):
+def cleanup_columns(df, continue_on_err=False):
     if df is None:
         return
     # cleanup names
@@ -58,8 +58,8 @@ def cleanup_columns(df):
             df[col] = df[col].str.strip()
 
         try:
-            if COLUMN_TYPES[col] == float:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+            if COLUMN_TYPES[col] is float:
+                df[col] = pd.to_numeric(df[col].replace(r'[\£,]', '', regex=True), errors='coerce')
         except KeyError:
             # unknown column name
             pass
@@ -87,7 +87,11 @@ def cleanup_columns(df):
     # set date column to date type (if found)
     try:
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True).dt.date
-    except (KeyError, ValueError) as err:
+    except KeyError:
+        print(f'WARNING: Date column not found.')
+    except ValueError as err:
+        if not continue_on_err:
+            raise
         print(f'WARNING: Could not parse date column. {err}')
 
 
@@ -134,9 +138,9 @@ def read_from_excel(filepath, names=None, count=None):
     return out_df
 
 
-def read_from_csv(filepath):
+def read_from_csv(filepath, continue_on_err=False):
     df = pd.read_csv(filepath, skipinitialspace=True, skip_blank_lines=True, encoding='utf-8')
-    cleanup_columns(df)
+    cleanup_columns(df, continue_on_err=continue_on_err)
     return df
 
 
@@ -198,7 +202,8 @@ def validate(df, continue_on_err=False):
     # return not(missing or df[~mask])
 
 
-def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, unique=False):
+def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, unique=False,
+                continue_on_err=False):
     ac = None
     if isinstance(filepath, str):
         filelist = [filepath]
@@ -207,7 +212,7 @@ def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, 
     for filename in filelist:
         if fnmatch.fnmatch(os.path.splitext(filename)[1].lower(), '*.csv'):
             print('importing from csv file...')
-            ac = read_from_csv(filename)
+            ac = read_from_csv(filename, continue_on_err=continue_on_err)
         elif fnmatch.fnmatch(os.path.splitext(filename)[1].lower(), '*.xls*'):
             print('importing from excel file...')
             ac = read_from_excel(filename, names=sheet_names, count=sheet_count)
@@ -274,50 +279,81 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False):
         print(", ".join(result[~in_config_df].index.values))
 
     if add_categories:
-        print("Please input categories for the following items (press Enter to quit):")
-        print("Current categories are: ", ', '.join(set(config.values())))
+        print("Please input categories for the following items, either by number or name. "
+              "New categories can be added. Press enter to skip and entry or q to quit):")
+        all_categories = sorted(set(config.values()))
+        print("Current categories are: ", ", ".join([f"{i + 1}: {c}" for i, c in
+                                                     enumerate(all_categories)]))
         for item in result[~in_config_df].index:
-            category = input(f"{item} >")
+            typical_amount = ac[ac['Description'] == item]['Amount'].values[0]
+            category = input(f"{item} ({typical_amount}) > ")
             if category:
-                config[item] = category
-            else:
-                break
+                if category.lower() == 'q':
+                    break
+                try:
+                    config[item] = all_categories[int(category) - 1]
+                except IndexError:
+                    print(f"Category {category} is invalid.")
+                except ValueError:
+                    config[item] = category
 
         with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
+            os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
             json.dump(config, fp)
+
+
+def delete_category(category):
+    if not os.path.exists(CONFIG_PATH):
+        print("Config file not found, nothing to delete.")
+        return
+    with open(CONFIG_PATH, mode='r', encoding='utf-8') as fp:
+        config = json.load(fp)
+    keys_to_delete = []
+    for k, v in config.items():
+        if v == category:
+            keys_to_delete.append(k)
+    for k in keys_to_delete:
+        print(f"Deleting item {k}")
+        del config[k]
+
+    with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
+        json.dump(config, fp)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Bank account statement manager')
     commands = parser.add_mutually_exclusive_group(required=True)
     commands.add_argument('--import_file', '-i', action='store_true',
-                          help='Read and reformat a bank statement ')
+                          help='Read and reformat a bank statement.')
     commands.add_argument('--calc_outgoings', '-c', action='store_true',
-                          help='Calculate outgoings and summarise by type')
+                          help='Calculate outgoings and summarise by type.')
+    commands.add_argument('--delete_category', '-d', action='store_true',
+                          help='Delete a category from the config file. Enter the category '
+                               'to be deleted instead of a file name.')
     commands.add_argument('--show_statement', '-s', action='store_true',
-                          help='Show statement for the given time period')
+                          help='Show statement for the given time period.')
     commands.add_argument('--validate', '-v', action='store_true',
-                          help='Validate csv file')
+                          help='Validate CSV file.')
 
-    parser.add_argument('file', nargs='+', help='csv file(s) to be read')
+    parser.add_argument('file', nargs='+', help='CSV file(s) to be read.')
     parser.add_argument('--output_file', '-o',
-                        help='output file name. outputs to stdout if not given.')
-    parser.add_argument('--date_from', '-f', help='show records on or after this date')
-    parser.add_argument('--date_to', '-t', help='show records on or before this date')
+                        help='Output file name. Outputs to stdout if not given.')
+    parser.add_argument('--date_from', '-f', help='Show records on or after this date.')
+    parser.add_argument('--date_to', '-t', help='Show records on or before this date.')
     parser.add_argument('--sheet_names', '-n', nargs='+',
-                        help='list of spreadsheet names to be read')
+                        help='List of spreadsheet names to be read.')
     parser.add_argument('--sheet_count', type=int,
-                        help='number of sheets to be read from excel file')
+                        help='Number of sheets to be read from Excel file.')
     parser.add_argument('--unique', action='store_true',
-                        help='do not add existing rows when importing. unique records only')
+                        help='Do not add existing rows when importing; unique records only.')
     parser.add_argument('--date_only', action='store_true',
-                        help='only show date range when showing statement')
+                        help='Only show date range when showing statement.')
     parser.add_argument('--show_unknown', action='store_true',
-                        help='show all unknown items when calculating outgoings')
+                        help='Show all unknown items when calculating outgoings.')
     parser.add_argument('--add_categories', action='store_true',
-                        help='add categories for unknown items when calculating outgoings')
+                        help='Add categories for unknown items when calculating outgoings.')
     parser.add_argument('--continue_on_error', action='store_true',
-                        help='show a warning and continue if there is an error')
+                        help='Show a warning and continue if there is an error.')
     return parser.parse_args()
 
 
@@ -332,6 +368,8 @@ def main():
     elif args.calc_outgoings:
         calc_outgoings(args.file[0], show_unknown=args.show_unknown,
                        add_categories=args.add_categories)
+    elif args.delete_category:
+        delete_category(args.file[0])
     elif args.validate:
         for fn in args.file:
             validate(read_from_csv(fn), continue_on_err=args.continue_on_error)

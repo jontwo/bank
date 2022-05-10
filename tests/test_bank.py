@@ -260,7 +260,7 @@ class TestBank:
             json.dump({}, fp)
         # mock user input of two items
         mock_input = mock.MagicMock(spec=input)
-        mock_input.side_effect = ['Food', 'Entertainment', '']
+        mock_input.side_effect = ['Food', 'Entertainment', 'q']
         expected = {'Item 1': 'Food', 'Item 2': 'Entertainment'}
 
         with mock.patch('bank.bank.CONFIG_PATH', config_path), \
