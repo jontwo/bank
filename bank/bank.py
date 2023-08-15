@@ -238,15 +238,7 @@ def show_statement(filename, date_from=None, date_to=None, date_only=False, outp
         print(ac['Date'].max().strftime('%d %B %Y'))
         return
 
-    try:
-        if date_from:
-            ac = ac.loc[ac['Date'] >= parse_date(date_from,
-                                                 dayfirst=not YEARFIRST.match(date_from)).date()]
-        if date_to:
-            ac = ac.loc[ac['Date'] <= parse_date(date_to,
-                                                 dayfirst=not YEARFIRST.match(date_to)).date()]
-    except TypeError as exc:
-        print(f'WARNING: Could not set date range. {exc}')
+    ac = filter_df_by_date(ac, date_from=date_from, date_to=date_to)
 
     if output_file:
         write_to_csv(ac, output_file)
@@ -259,7 +251,22 @@ def show_statement(filename, date_from=None, date_to=None, date_only=False, outp
         print(ac)
 
 
-def calc_outgoings(filename, show_unknown=False, add_categories=False):
+def filter_df_by_date(ac, date_from=None, date_to=None):
+    try:
+        if date_from:
+            ac = ac.loc[ac['Date'] >= parse_date(date_from,
+                                                 dayfirst=not YEARFIRST.match(date_from)).date()]
+        if date_to:
+            ac = ac.loc[ac['Date'] <= parse_date(date_to,
+                                                 dayfirst=not YEARFIRST.match(date_to)).date()]
+    except TypeError as exc:
+        print(f'WARNING: Could not set date range. {exc}')
+
+    return ac
+
+
+def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from=None,
+                   date_to=None):
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, mode='r', encoding='utf-8') as fp:
             config = json.load(fp)
@@ -268,6 +275,7 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False):
     all_items = config.values()
     print("Total outgoings (£):")
     ac = read_from_csv(filename)
+    ac = filter_df_by_date(ac, date_from=date_from, date_to=date_to)
     result = ac.replace({'Description': config}).groupby('Description').sum()['Amount']
     in_config_df = result.index.isin(all_items)
     other_items = pd.Series([result[~in_config_df].sum()], index=['Other'])
@@ -367,7 +375,8 @@ def main():
                        date_only=args.date_only, output_file=args.output_file)
     elif args.calc_outgoings:
         calc_outgoings(args.file[0], show_unknown=args.show_unknown,
-                       add_categories=args.add_categories)
+                       add_categories=args.add_categories, date_from=args.date_from,
+                       date_to=args.date_to)
     elif args.delete_category:
         delete_category(args.file[0])
     elif args.validate:
