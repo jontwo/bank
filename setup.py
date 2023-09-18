@@ -13,7 +13,7 @@ setup(
     description='Bank statement parsing utility',
     packages=['bank'],
     include_package_data=True,
-    install_requires=['numpy', 'openpyxl', 'pandas', 'python-dateutil', 'simplejson',
+    install_requires=['numpy', 'openpyxl', 'pandas<2', 'python-dateutil', 'simplejson',
                       'xlrd>=0.9.0'],
     extras=['test'],
     extras_require={'test': ['pytest']},
@@ -25,8 +25,8 @@ setup(
     url='https://github.com/jontwo/bank',
     entry_points={
         'console_scripts': [
-            'bank = bank:main'
-        ]
+            'bank = bank:main',
+        ],
     },
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
@@ -35,6 +35,6 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
-        'Topic :: Office/Business :: Financial'
-    ]
+        'Topic :: Office/Business :: Financial',
+    ],
 )

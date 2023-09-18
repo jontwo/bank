@@ -25,7 +25,7 @@ COLUMN_TYPES = {
     'Debit/Credit': float,
     'Paid out': float,
     'Paid in': float,
-    'Billing Amount': float
+    'Billing Amount': float,
 }
 ALIASES = [
     {'Merchant': 'Description'},
@@ -88,7 +88,7 @@ def cleanup_columns(df, continue_on_err=False):
     try:
         df['Date'] = pd.to_datetime(df['Date'], dayfirst=True).dt.date
     except KeyError:
-        print(f'WARNING: Date column not found.')
+        print('WARNING: Date column not found.')
     except ValueError as err:
         if not continue_on_err:
             raise
@@ -105,7 +105,7 @@ def read_from_excel(filepath, names=None, count=None):
     if count:
         namelist = namelist[:count]
     for sht in namelist:
-        print('Reading sheet {}...'.format(sht))
+        print(f'Reading sheet {sht}...')
         skip = 0
         while True:
             try:
@@ -151,8 +151,8 @@ def write_to_csv(df, filepath, remove_duplicates=False, check_columns=True, cont
         if check_columns and not df_existing.columns.str.lower().sort_values().equals(
                 df.columns.str.lower().sort_values()):
             print('WARNING: column names do not match')
-            print('Existing columns: {}'.format(df_existing.columns))
-            print('New columns: {}'.format(df.columns))
+            print(f'Existing columns: {df_existing.columns}')
+            print(f'New columns: {df.columns}')
             if not continue_on_err:
                 return
             # TODO look for mapping if different
@@ -170,7 +170,7 @@ def write_to_csv(df, filepath, remove_duplicates=False, check_columns=True, cont
 def validate(df, continue_on_err=False):
     missing = set(COLUMN_NAMES).difference(set(df.columns))
     if missing:
-        print("ERROR: File does not have the following columns: {}".format(missing))
+        print(f"ERROR: File does not have the following columns: {missing}")
         if not continue_on_err:
             return False
 
@@ -182,7 +182,7 @@ def validate(df, continue_on_err=False):
     missing = sorted(set(expected_months).difference(set(actual_months)))
 
     for month in missing:
-        print("No entries found in {}".format(month))
+        print(f"No entries found in {month}")
 
     return not missing
 
@@ -217,7 +217,7 @@ def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, 
             print('importing from excel file...')
             ac = read_from_excel(filename, names=sheet_names, count=sheet_count)
         else:
-            raise ValueError('import file type {} not supported'.format(filename))
+            raise ValueError(f'import file type {filename} not supported')
 
     if ac is None or ac.empty:
         return
@@ -276,7 +276,8 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from
     print("Total outgoings (£):")
     ac = read_from_csv(filename)
     ac = filter_df_by_date(ac, date_from=date_from, date_to=date_to)
-    result = ac.replace({'Description': config}).groupby('Description').sum()['Amount']
+    result = ac.replace({'Description': config}).groupby('Description') \
+        .sum(numeric_only=True)['Amount']
     in_config_df = result.index.isin(all_items)
     other_items = pd.Series([result[~in_config_df].sum()], index=['Other'])
     all_items = pd.concat((result[in_config_df], other_items))
