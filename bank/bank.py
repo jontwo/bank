@@ -44,6 +44,10 @@ __all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'CONFIG_PATH', 'YEARFIRST'
            'read_from_excel', 'show_statement', 'validate', 'write_to_csv']
 
 
+def get_date_range(df):
+    return df['Date'].min().strftime('%d %B %Y'), df['Date'].max().strftime('%d %B %Y')
+
+
 def cleanup_columns(df, continue_on_err=False):
     if df is None:
         return
@@ -229,13 +233,12 @@ def import_file(filepath, sheet_names=None, sheet_count=None, output_file=None, 
 
 
 def show_statement(filename, date_from=None, date_to=None, date_only=False, output_file=None):
-    print('showing statement for ', filename)
+    print("Showing statement for", filename)
     ac = read_from_csv(filename)
 
     if date_only:
-        print('date range:')
-        print(ac['Date'].min().strftime('%d %B %Y'))
-        print(ac['Date'].max().strftime('%d %B %Y'))
+        date_range = '\n'.join(get_date_range(ac))
+        print(f"Date range:\n{date_range}")
         return
 
     ac = filter_df_by_date(ac, date_from=date_from, date_to=date_to)
@@ -273,9 +276,9 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from
     else:
         config = {}
     all_items = config.values()
-    print("Total outgoings (£):")
     ac = read_from_csv(filename)
     ac = filter_df_by_date(ac, date_from=date_from, date_to=date_to)
+    print(f"Total outgoings for {' to '.join(get_date_range(ac))} (£):")
     result = ac.replace({'Description': config}).groupby('Description') \
         .sum(numeric_only=True)['Amount']
     in_config_df = result.index.isin(all_items)
@@ -283,32 +286,33 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from
     all_items = pd.concat((result[in_config_df], other_items))
     print(all_items.to_string(header=False, float_format=lambda x: f'{x:.2f}'))
 
-    if show_unknown:
-        print("The following items do not have a category:")
-        print(", ".join(result[~in_config_df].index.values))
+    unknown = result[~in_config_df].index.values
+    if unknown.any():
+        if show_unknown:
+            print(f"The following items do not have a category:\n{', '.join(unknown)}")
 
-    if add_categories:
-        print("Please input categories for the following items, either by number or name. "
-              "New categories can be added. Press enter to skip and entry or q to quit):")
-        all_categories = sorted(set(config.values()))
-        print("Current categories are: ", ", ".join([f"{i + 1}: {c}" for i, c in
-                                                     enumerate(all_categories)]))
-        for item in result[~in_config_df].index:
-            typical_amount = ac[ac['Description'] == item]['Amount'].values[0]
-            category = input(f"{item} ({typical_amount}) > ")
-            if category:
-                if category.lower() == 'q':
-                    break
-                try:
-                    config[item] = all_categories[int(category) - 1]
-                except IndexError:
-                    print(f"Category {category} is invalid.")
-                except ValueError:
-                    config[item] = category
+        if add_categories:
+            print("Please input categories for the following items, either by number or name. "
+                  "New categories can be added. Press enter to skip and entry or q to quit):")
+            all_categories = sorted(set(config.values()))
+            print("Current categories are: ", ", ".join([f"{i + 1}: {c}" for i, c in
+                                                         enumerate(all_categories)]))
+            for item in result[~in_config_df].index:
+                typical_amount = ac[ac['Description'] == item]['Amount'].values[0]
+                category = input(f"{item} ({typical_amount}) > ")
+                if category:
+                    if category.lower() == 'q':
+                        break
+                    try:
+                        config[item] = all_categories[int(category) - 1]
+                    except IndexError:
+                        print(f"Category {category} is invalid.")
+                    except ValueError:
+                        config[item] = category
 
-        with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
-            os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-            json.dump(config, fp)
+            with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
+                os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+                json.dump(config, fp)
 
 
 def delete_category(category):

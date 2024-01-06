@@ -234,7 +234,9 @@ class TestBank:
     def test_calc_outgoings(self, config_path, capsys):
         """Calculate the total outgoings for each category in the config"""
         exp_regex = re.compile(
-            r'Total outgoings \(£\):\nEntertainment\s+0.50\nFood\s+1.00\nOther\s+2.00$')
+            r'Total outgoings for 01 January 2016 to 10 November 2016 \(£\):\n'
+            r'Entertainment\s+0.50\nFood\s+1.00\nOther\s+2.00$'
+        )
         with mock.patch('bank.bank.CONFIG_PATH', config_path):
             bank.calc_outgoings(self.csv_in)
 
