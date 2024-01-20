@@ -38,14 +38,45 @@ ALIASES = [
 ]
 YEARFIRST = re.compile(r'^\d{4}')
 CONFIG_PATH = os.path.expanduser(os.path.join('~', '.config', 'bank.json'))
+CATEGORY_KEY = 'categories'
+REGEX_KEY = 'regexes'
+VERSION_KEY = 'version'
 
-__all__ = ['ALIASES', 'COLUMN_NAMES', 'COLUMN_TYPES', 'CONFIG_PATH', 'YEARFIRST', 'calc_outgoings',
-           'cleanup_columns', 'delete_category', 'import_file', 'main', 'read_from_csv',
-           'read_from_excel', 'show_statement', 'validate', 'write_to_csv']
+__all__ = [
+    'ALIASES', 'CATEGORY_KEY', 'COLUMN_NAMES', 'COLUMN_TYPES', 'CONFIG_PATH', 'REGEX_KEY',
+    'VERSION_KEY', 'YEARFIRST', 'calc_outgoings', 'cleanup_columns', 'delete_category',
+    'filter_df_by_date', 'get_date_range', 'get_default_config', 'import_file', 'is_valid_regex',
+    'main', 'read_from_csv', 'read_from_excel', 'show_statement', 'update_config_version',
+    'validate', 'write_to_csv'
+]
 
 
 def get_date_range(df):
     return df['Date'].min().strftime('%d %B %Y'), df['Date'].max().strftime('%d %B %Y')
+
+
+def update_config_version(config):
+    from . import __version__
+    config[VERSION_KEY] = __version__
+
+
+def get_default_config():
+    config = {CATEGORY_KEY: {}, REGEX_KEY: {}}
+    update_config_version(config)
+    return config
+
+
+def is_valid_regex(pattern, check_item):
+    """Check that a regex pattern is valid and matches the given item."""
+    try:
+        if not re.compile(pattern).search(check_item):
+            print("Regex does not match item.")
+            return False
+    except re.error:
+        print("Regex is not valid.")
+        return False
+
+    return True
 
 
 def cleanup_columns(df, continue_on_err=False):
@@ -270,21 +301,39 @@ def filter_df_by_date(ac, date_from=None, date_to=None):
 
 def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from=None,
                    date_to=None):
+
+    def _add_category_regex(is_regex=False):
+        key = REGEX_KEY if is_regex else CATEGORY_KEY
+        try:
+            config[key][item] = all_categories[int(category) - 1]
+        except IndexError:
+            print(f"Category {category} is invalid.")
+        except ValueError:
+            config[key][item] = category
+            all_categories.append(category)
+            print("Added new category")
+
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, mode='r', encoding='utf-8') as fp:
             config = json.load(fp)
+        if VERSION_KEY not in config.keys():
+            # Must be opening an old category-only config, update with new keys
+            config = {CATEGORY_KEY: config, REGEX_KEY: {}}
+            update_config_version(config)
     else:
-        config = {}
-    all_items = config.values()
+        config = get_default_config()
+    all_items = list(config[CATEGORY_KEY].values())
+    all_items.extend(list(config[REGEX_KEY].values()))
     ac = read_from_csv(filename)
     ac = filter_df_by_date(ac, date_from=date_from, date_to=date_to)
     print(f"Total outgoings for {' to '.join(get_date_range(ac))} (£):")
-    result = ac.replace({'Description': config}).groupby('Description') \
-        .sum(numeric_only=True)['Amount']
+    ac.replace(to_replace={'Description': config[CATEGORY_KEY]}, inplace=True)
+    ac.replace(regex={'Description': config[REGEX_KEY]}, inplace=True)
+    result = ac.groupby('Description').sum(numeric_only=True)['Amount']
     in_config_df = result.index.isin(all_items)
     other_items = pd.Series([result[~in_config_df].sum()], index=['Other'])
-    all_items = pd.concat((result[in_config_df], other_items))
-    print(all_items.to_string(header=False, float_format=lambda x: f'{x:.2f}'))
+    out_df = pd.concat((result[in_config_df], other_items))
+    print(out_df.to_string(header=False, float_format=lambda x: f'{x:.2f}'))
 
     unknown = result[~in_config_df].index.values
     if unknown.any():
@@ -293,8 +342,10 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from
 
         if add_categories:
             print("Please input categories for the following items, either by number or name. "
-                  "New categories can be added. Press enter to skip and entry or q to quit):")
-            all_categories = sorted(set(config.values()))
+                  "New categories can be added. Press enter to skip an entry, r to add as a "
+                  "regex, or q to quit):")
+            print(all_items)
+            all_categories = sorted(set(all_items))
             print("Current categories are: ", ", ".join([f"{i + 1}: {c}" for i, c in
                                                          enumerate(all_categories)]))
             for item in result[~in_config_df].index:
@@ -303,15 +354,20 @@ def calc_outgoings(filename, show_unknown=False, add_categories=False, date_from
                 if category:
                     if category.lower() == 'q':
                         break
-                    try:
-                        config[item] = all_categories[int(category) - 1]
-                    except IndexError:
-                        print(f"Category {category} is invalid.")
-                    except ValueError:
-                        config[item] = category
+
+                    if category.lower() == 'r':
+                        orig_item = item
+                        item = input(f"Enter regex for {orig_item} > ")
+                        while not is_valid_regex(item, orig_item):
+                            item = input(f"Enter regex for {orig_item} > ")
+                        category = input(f"Enter category for pattern {item} > ")
+                        _add_category_regex(is_regex=True)
+                    else:
+                        _add_category_regex(is_regex=False)
 
             with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
                 os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+                update_config_version(config)
                 json.dump(config, fp)
 
 
@@ -322,12 +378,12 @@ def delete_category(category):
     with open(CONFIG_PATH, mode='r', encoding='utf-8') as fp:
         config = json.load(fp)
     keys_to_delete = []
-    for k, v in config.items():
+    for k, v in config[CATEGORY_KEY].items():
         if v == category:
             keys_to_delete.append(k)
     for k in keys_to_delete:
         print(f"Deleting item {k}")
-        del config[k]
+        del config[CATEGORY_KEY][k]
 
     with open(CONFIG_PATH, mode='w', encoding='utf-8') as fp:
         json.dump(config, fp)
