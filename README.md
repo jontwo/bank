@@ -5,4 +5,4 @@ bank
 
 bank is a utility to process downloaded bank statements.
 
-(c) 2017 jontwo
+(c) 2017-2024 jontwo
