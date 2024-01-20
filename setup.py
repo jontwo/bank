@@ -7,7 +7,7 @@ from setuptools import setup
 init_py = open(os.path.join('bank', '__init__.py')).read()
 info = dict(re.findall(r"__([a-z_]+)__\s*=\s*'([^']+)'", init_py))
 
-test_reqs = ['pytest', 'pytest-mock']
+test_reqs = ['pytest', 'pytest-mock', 'pytest-cov']
 
 setup(
     name='bank',
